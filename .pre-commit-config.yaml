@@ -1,0 +1,66 @@
+---
+default_install_hook_types: [pre-commit]
+default_stages: [pre-commit, manual]
+minimum_pre_commit_version: 3.5.0
+fail_fast: true
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: mixed-line-ending
+      - id: end-of-file-fixer
+        exclude: ^dist/
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: check-xml
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: fix-byte-order-marker
+      - id: check-yaml
+      - id: trailing-whitespace
+        exclude: ^dist/
+      - id: check-added-large-files
+      - id: forbid-new-submodules
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.6.27
+    hooks:
+      - id: actionlint
+        stages: [pre-commit, pre-push, manual]
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        exclude: |
+          (?x)(
+            \.md$|
+            ^dist/|
+            ^\.vscode/.*\.code-snippets$
+          )
+
+  - repo: https://github.com/fchastanet/jumanjihouse-pre-commit-hooks
+    rev: 3.0.2
+    hooks:
+      # Check both committed and uncommitted files for git conflict
+      # markers and whitespace errors according to core.whitespace
+      # and conflict-marker-size configuration in a git repo.
+      - id: git-check
+        # x modifier: extended. Spaces and text after a # in the pattern are ignored
+        exclude: |
+          (?x)(
+            ^dist/
+          )
+
+  - repo: local
+    hooks:
+      - id: build
+        name: build
+        entry: npm run all
+        language: system
+        pass_filenames: false
+        always_run: true
+        require_serial: true
+        stages: [pre-commit]

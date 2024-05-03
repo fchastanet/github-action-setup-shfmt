@@ -7,9 +7,61 @@ inputs:
     description: Version of shfmt to download
     required: false
     default: latest
+  use-cache:
+    description: |
+      Indicates if you want to use github cache to store the binary
+    required: false
+    default: true
+  bin-dir:
+    description: |
+      Indicates the full path the binary directory
+    required: false
+    default: "/usr/local/bin"
 runs:
-  using: node20
-  main: dist/index.js
+  using: "composite"
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Compute paths
+      shell: bash
+      run: |
+        set -x
+        extension=""
+        if [[ "${{ runner.os }}" = "windows" ]]; then
+          extension=".exe"
+        fi
+        binDir="${{inputs.bin-dir}}"
+        binDir="${binDir/#\~/${HOME}}" # replace eventual ~ by HOME dir
+        echo "SHFMT_BIN_DIR=${binDir}" >> "${GITHUB_ENV}"
+        echo "SHFMT_PATH=${binDir}/shfmt${extension}" >> "${GITHUB_ENV}"
+        # Add bin directory to the PATH
+        echo "${binDir}" >> "${GITHUB_PATH}"
+
+    # no particular cache expiration policy implemented
+    # as version of the tool will checked at each build
+    # the cache will updated automatically
+    # anyway cache is removed after 7 days of not being
+    # accessed
+    - if: ${{ inputs.use-cache == true || inputs.use-cache == 'true' }}
+      uses: actions/cache@v4
+      with:
+        path: ${{env.SHFMT_PATH}}
+        key: ${{ runner.os }}-shfmt-${{inputs.shfmt-version}}
+      env:
+        # should not take more than 1 minute to update cache
+        SEGMENT_DOWNLOAD_TIMEOUT_MINS: 1
+
+    - name: download shfmt if needed
+      shell: bash
+      env:
+        INPUT_SHFMT-VERSION: ${{inputs.shfmt-version}}
+        INPUT_SHFMT-BIN-DIR: ${{env.SHFMT_BIN_DIR}}
+      run: |
+        actionPath="${{github.action_path}}"
+        node "${actionPath%/./*}/dist/index.js"
+
 branding:
   icon: terminal
   color: purple

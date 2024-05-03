@@ -1,5 +1,13 @@
 # setup-shfmt changelog
 
+## v4.0.0 (2024/05/03)
+
+Cache management
+
+- cache
+- added use-cache feature flag and bin-dir option
+- displayed some stats
+
 ## v3.0.1 (2023/09/18)
 
 Remove useless debug statements

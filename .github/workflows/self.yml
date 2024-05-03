@@ -1,52 +1,82 @@
 ---
-name: Self
+name: Self Action Tests
 on: [push, pull_request]
 
 jobs:
-  latest:
-    runs-on: ${{ matrix.os }}
+  test-shfmt:
+    name: ${{ matrix.os }} shfmt ${{ matrix.shfmt-version }} ${{ matrix.use-cache }} ${{ matrix.bin-dir}}
+    runs-on: ${{ matrix.os }}-latest
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os:
+          - ubuntu
+          - macos
+        shfmt-version:
+          - latest
+          - "3.3.1"
+        use-cache:
+          - "cache"
+          - "noCache"
+        bin-dir:
+          - "~/bin"
+          - "/usr/local/bin"
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       # ensure that a PR that doesn't update the dist actually uses the
       # updated code when it's running the self step
       - if: github.event_name == 'pull_request'
         run: npm ci && npm run build && npm run package
 
-      - uses: ./
-      - if: ${{ matrix.os == 'windows-latest' }}
-        run: shfmt.exe -d test.bash
-      - if: ${{ matrix.os != 'windows-latest' }}
-        run: shfmt -d test.bash
+      - name: ensure shfmt is not installed yet
+        run: rm -f "${{ matrix.bin-dir}}/shfmt"* || true
 
-  fixed:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Use our own action
+        uses: ./
         with:
-          node-version: '20'
+          shfmt-version: ${{matrix.shfmt-version}}
+          use-cache: ${{matrix.use-cache == 'cache'}}
+          bin-dir: ${{matrix.bin-dir}}
 
-      # ensure that a PR that doesn't update the dist actually uses the
-      # updated code when it's running the self step
-      - if: github.event_name == 'pull_request'
-        run: npm ci && npm run build && npm run package
+      - name: Test ubuntu version
+        run: |
+          set -x
+          binDir="${{matrix.bin-dir}}"
+          # shellcheck disable=SC2088
+          if [[ "${binDir}" = '~/bin' ]]; then
+            binDir="${HOME}/bin"
+          fi
+          shfmtPath="$(command -v shfmt)"
+          [[ "${shfmtPath}" = "${binDir}/shfmt" ]] || {
+            echo "incorrect installation path"
+            exit 1
+          }
+          shfmt -d test.bash || {
+            echo "unable to format the file test.bash"
+            exit 2
+          }
 
-      - uses: ./
-        with:
-          shfmt-version: 3.3.1
-      - if: ${{ matrix.os == 'windows-latest' }}
-        run: shfmt.exe -d test.bash
-      - if: ${{ matrix.os != 'windows-latest' }}
-        run: shfmt -d test.bash
+      - name: Test ubuntu shfmt latest version
+        if: >
+          matrix.shfmt-version == 'latest'
+        run: |
+          shfmtVersion="$(shfmt --version| head -n1 | sed -E -e 's/^v(.*)$/\1/')"
+          if ! printf '3.6.0\n%s\n' "${shfmtVersion}" | sort -V -C; then
+            echo "shfmt version ${shfmtVersion} should be greater than 3.6.0"
+            exit 1
+          fi
+
+      - name: Test ubuntu shfmt 3.3.1 version
+        if: >
+          matrix.shfmt-version == '3.3.1'
+        run: |
+          shfmtVersion="$(shfmt --version)"
+          if [[ "${shfmtVersion}" != "v3.3.1" ]]; then
+            echo "incorrect shfmt version ${shfmtVersion}"
+            exit 1
+          fi
